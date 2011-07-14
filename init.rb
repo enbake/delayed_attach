@@ -6,6 +6,7 @@ config.gem 'aws-s3', :version => '>=0.6.2', :lib => 'aws/s3'
 
 require 'geometry'
 require 'hapgood/attach'
+require 'hapgood/jobs/send_to_amazon_job'
 
 Hapgood::Attach::StandardImageGeometry = { :thumbnail => ::Geometry.from_s("128x128>"),
                                   :vignette => ::Geometry.from_s('256x256>'),

@@ -77,9 +77,17 @@ module Hapgood # :nodoc:
         extension = mt.to_sym.to_s.gsub('/', '_') rescue nil
         ::URI.parse(attachment_options[:store].call(id, extension))
       end
+
+      def process_aspects_and_source(options = {})
+        after_save do |attachment|
+          Resque.enqueue(SendToAmazonJob, attachment.id, options[:s3_bucket], options[:aspect]) unless attachment.attachment_has_changed? == false
+        end
+      end
     end
 
     module InstanceMethods
+      META_ATTRIBUTES = ['content_type', 'size', 'filename', 'digest']
+
       # Checks whether the attachment's content type is an image content type
       def image?
         self.class.image?(content_type)
@@ -138,6 +146,15 @@ module Hapgood # :nodoc:
         @source_updated = true
       end
 
+      def attachment_has_changed?
+        META_ATTRIBUTES.each do |attribute|
+          full_attribute = "#{attribute}_changed?".to_sym
+          next unless self.respond_to?(full_attribute)
+          return true if self.send("#{attribute}_changed?")
+        end
+        false
+      end
+
       # Allows you to work with a processed representation (RMagick, ImageScience, etc) of the attachment in a block.
       # The source is modified to reflect modifications to the image.
       #   @attachment.change_image do |img|
@@ -168,6 +185,35 @@ module Hapgood # :nodoc:
         # TODO: Convert this to a composed_of macro, but only when :constructor is available in all supported Rails versions.
         @mime_type = mt
         write_attribute(:content_type, @mime_type && @mime_type.to_s)
+      end
+
+      # process attachment to upload attachment and aspects later to s3.
+      def perform_remote_transfer(options={})
+        self.class.attachment_options.merge!(options)
+        self.class.attachment_options[:aspect].each do |transform|
+          transformed = Sources::Base.process(source, transform)
+          storage_uri = self.class.storage_uri(aspect_filename(source, transform), mime_type)
+          Sources::Base.store(transformed, storage_uri)
+        end unless !processable?
+        storage_uri = self.class.storage_uri(uuid!, mime_type)
+        self.source = Sources::Base.store(source, storage_uri)
+        self.uri = self.source.uri
+        @source_updated = nil # Indicate that no further storage is necessary.
+      end
+
+      # Gets a filename suitable for this transform.
+      def aspect_filename(source, transform=nil)
+        pn = Pathname.new(source.filename)
+        pn.basename(pn.extname).to_s.tap do |s|
+          s << "_" << transform.to_s unless transform.nil?
+          s << "_" << id.to_s
+        end
+      end
+
+      def aspect_data(aspect = nil)
+        aspect_name = aspect_filename(source, aspect)
+        aspect_name << "." << mime_type.to_sym.to_s
+        Sources::Base.aspect_data(uri, aspect_name)
       end
 
       protected
@@ -216,8 +262,18 @@ module Hapgood # :nodoc:
         @source_updated = nil # Indicate that no further storage is necessary.
       end
 
+      #destroy_aspect destroy the aspects from s3
+      def destroy_aspect
+        Hapgood::Attach::StandardImageGeometry.each_key do |aspect|
+          aspect_name = aspect_filename(source, aspect.to_s)
+          aspect_name << "." << source.mime_type.to_sym.to_s.gsub('/', '_')
+          source.destroy_aspect(aspect_name)
+        end
+      end
+
       def destroy_source
         source && source.destroy
+        destroy_aspect rescue nil
       rescue MissingSource
         true # If the source is missing, carry on.
       ensure

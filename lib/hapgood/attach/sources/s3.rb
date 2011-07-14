@@ -66,6 +66,16 @@ module Hapgood # :nodoc:
           URI.parse(s3obj.url(:expires_in => self.class.url_lifetime))
         end
 
+        # return the aspect data
+        def self.aspect_data(uri, key)
+          begin
+            bucket = uri.path.split('/')[1]
+            S3Object.find(key, bucket)
+          rescue AWS::S3::NoSuchKey => e
+            raise MissingSource, e.to_s
+          end.value
+        end
+
         # Returns a file name suitable for this source when saved in a persistent file.
         # The URI fallback is likely to be cryptic in many case.
         def filename
@@ -100,6 +110,13 @@ module Hapgood # :nodoc:
         rescue MissingSource
         ensure
           freeze
+        end
+
+        # destroy the related aspect
+        def destroy_aspect(key)
+          bucket = uri.path.split('/')[1]
+          aspectobj = S3Object.find(key, bucket) rescue nil
+          aspectobj.delete unless aspectobj.nil?
         end
 
         private

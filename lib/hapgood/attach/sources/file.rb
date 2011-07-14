@@ -33,6 +33,9 @@ module Hapgood # :nodoc:
           self.new(uri, metadata)
         end
 
+        def self.aspect_data(uri, aspect_name)
+        end
+
         def initialize(uri, m = {})
           @uri = uri
           super
@@ -52,7 +55,7 @@ module Hapgood # :nodoc:
 
         # Can this source be modified by this application?
         def readonly?
-          frozen? || !pathname.writeable?
+          frozen?
         end
 
         # =Metadata=
@@ -99,6 +102,11 @@ module Hapgood # :nodoc:
         rescue Errno::ENOENT
         ensure
           freeze
+        end
+
+        # destroy the related aspect
+        def destroy_aspect(filename)
+          # not yet implemented.
         end
 
         private
