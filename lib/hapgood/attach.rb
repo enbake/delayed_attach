@@ -216,6 +216,14 @@ module Hapgood # :nodoc:
         Sources::Base.aspect_data(uri, aspect_name)
       end
 
+      # check if the aspect exists on the given storage
+      def aspect_exists?(storage, aspect)
+        return false if uri.scheme != storage.to_s
+        aspect_name = aspect_filename(source, aspect)
+        aspect_name << "." << mime_type.to_sym.to_s
+        Sources::Base.aspect_exists?(uri, aspect_name)
+      end
+
       protected
       # validates the content_type attribute according to the current model's options
       def valid_content_type?

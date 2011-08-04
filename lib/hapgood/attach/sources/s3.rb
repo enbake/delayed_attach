@@ -66,6 +66,13 @@ module Hapgood # :nodoc:
           URI.parse(s3obj.url(:expires_in => self.class.url_lifetime))
         end
 
+        # Check the aspect corresponding to given URI exists on S3
+        def self.aspect_exists?(uri, aspect_name)
+          key = aspect_name
+          bucket = uri.path.split('/')[1]
+          return S3Object.exists?(key, bucket)
+        end
+
         # return the aspect data
         def self.aspect_data(uri, key)
           begin

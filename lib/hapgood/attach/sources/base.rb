@@ -94,6 +94,18 @@ module Hapgood # :nodoc:
           klass.aspect_data(uri, aspect_name)
         end
 
+        # Check if the aspect exists on the given storage.
+        def self.aspect_exists?(uri, aspect_name)
+         klass = case uri.scheme
+            when 'file' then Sources::File
+            when 's3' then Sources::S3
+            when 'db' then Sources::ActiveRecord
+            when 'memory' then Sources::Memory
+            else raise "Unknown Source !!"
+          end
+          klass.aspect_exists?(uri, aspect_name)
+        end
+
         def initialize(d = nil, m = nil)
           @data = d # Store primer data
           @metadata = m || {} # Store primer metadata
